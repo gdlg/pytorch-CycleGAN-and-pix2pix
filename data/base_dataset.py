@@ -27,6 +27,8 @@ def get_transform(opt):
         transform_list.append(transforms.Lambda(
             lambda img: __scale_width(img, opt.loadSize)))
         transform_list.append(transforms.RandomCrop(opt.fineSize))
+    elif opt.resize_or_crop == 'none':
+        pass
 
     if opt.isTrain and not opt.no_flip:
         transform_list.append(transforms.RandomHorizontalFlip())
