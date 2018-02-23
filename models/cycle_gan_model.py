@@ -77,29 +77,41 @@ class CycleGANModel(BaseModel):
 
     def set_input(self, input):
         AtoB = self.opt.which_direction == 'AtoB'
-        input_A = input['A' if AtoB else 'B']
-        input_B = input['B' if AtoB else 'A']
-        if len(self.gpu_ids) > 0:
-            input_A = input_A.cuda(self.gpu_ids[0], async=True)
-            input_B = input_B.cuda(self.gpu_ids[0], async=True)
+
+        if ('A' if AtoB else 'B') in input:
+            input_A = input['A' if AtoB else 'B']
+            if len(self.gpu_ids) > 0:
+                input_A = input_A.cuda(self.gpu_ids[0], async=True)
+        else:
+            input_A = None
+
+        if ('B' if AtoB else 'A') in input:
+            input_B = input['B' if AtoB else 'A']
+            if len(self.gpu_ids) > 0:
+                input_B = input_B.cuda(self.gpu_ids[0], async=True)
+        else:
+            input_B = None
+
         self.input_A = input_A
         self.input_B = input_B
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        self.image_paths = input['A_paths'] # if AtoB else 'B_paths']
 
     def forward(self):
         self.real_A = Variable(self.input_A)
         self.real_B = Variable(self.input_B)
 
     def test(self):
-        real_A = Variable(self.input_A, volatile=True)
-        fake_B = self.netG_A(real_A)
-        self.rec_A = self.netG_B(fake_B).data
-        self.fake_B = fake_B.data
+        if self.input_A is not None:
+            real_A = Variable(self.input_A, volatile=True)
+            fake_B = self.netG_A(real_A)
+            self.rec_A = self.netG_B(fake_B).data
+            self.fake_B = fake_B.data
 
-        real_B = Variable(self.input_B, volatile=True)
-        fake_A = self.netG_B(real_B)
-        self.rec_B = self.netG_A(fake_A).data
-        self.fake_A = fake_A.data
+        if self.input_B is not None:
+            real_B = Variable(self.input_B, volatile=True)
+            fake_A = self.netG_B(real_B)
+            self.rec_B = self.netG_A(fake_A).data
+            self.fake_A = fake_A.data
 
     # get image paths
     def get_image_paths(self):
@@ -207,14 +219,22 @@ class CycleGANModel(BaseModel):
         return ret_errors
 
     def get_current_visuals(self):
-        real_A = util.tensor2im(self.input_A)
-        fake_B = util.tensor2im(self.fake_B)
-        rec_A = util.tensor2im(self.rec_A)
-        real_B = util.tensor2im(self.input_B)
-        fake_A = util.tensor2im(self.fake_A)
-        rec_B = util.tensor2im(self.rec_B)
-        ret_visuals = OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('rec_A', rec_A),
-                                   ('real_B', real_B), ('fake_A', fake_A), ('rec_B', rec_B)])
+        visuals = []
+
+        if self.input_A is not None:
+            real_A = util.tensor2im(self.input_A)
+            fake_B = util.tensor2im(self.fake_B)
+            rec_A = util.tensor2im(self.rec_A)
+            visuals += [('real_A', real_A), ('fake_B', fake_B), ('rec_A', rec_A)]
+
+        if self.input_B is not None:
+            real_B = util.tensor2im(self.input_B)
+            fake_A = util.tensor2im(self.fake_A)
+            rec_B = util.tensor2im(self.rec_B)
+            visuals += [('real_B', real_B), ('fake_A', fake_A), ('rec_B', rec_B)]
+
+        ret_visuals = OrderedDict(visuals)
+
         if self.opt.isTrain and self.opt.identity > 0.0:
             ret_visuals['idt_A'] = util.tensor2im(self.idt_A)
             ret_visuals['idt_B'] = util.tensor2im(self.idt_B)
